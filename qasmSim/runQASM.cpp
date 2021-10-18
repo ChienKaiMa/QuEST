@@ -144,8 +144,6 @@ void Simulator::sim_qasm_file(std::string qasm)
     std::string inStr;
     std::stringstream inFile_ss(qasm);
     QuESTEnv env = createQuESTEnv();
-    //env.numRanks = 67108864;
-    // 36:32, 42:2048, 49:262144, 56:67108864
     Qureg qubits;
     ComplexMatrix4 u = {
         .real={
@@ -167,6 +165,12 @@ void Simulator::sim_qasm_file(std::string qasm)
             {
                 getline(inStr_ss, inStr, '[');
                 getline(inStr_ss, inStr, ']');
+                // Resolve memory allocation issue
+                int numQubits = stoi(inStr);
+                if (numQubits >= 32) {
+                    env.numRanks = pow(2, numQubits-30);
+                    std::cout << "env.numRanks " << env.numRanks << "\n";
+                }
                 qubits = createQureg(stoi(inStr), env);
                 initZeroState(qubits);
 
