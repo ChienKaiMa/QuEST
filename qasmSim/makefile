@@ -20,10 +20,10 @@
 #======================================================================#
 
 # name of the executable to create
-EXE = QuEST_qasm_sim
+EXE = QuEST_qasm_sim_dense
 
 # space-separated names (no file type) of all user source files (.c or .cpp) in the root directory
-SOURCES = memory_usage runQASM
+SOURCES = memory_usage runQASM_dense
 
 # path to QuEST library from root directory
 QUEST_DIR = ../QuEST
