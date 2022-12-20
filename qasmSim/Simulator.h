@@ -48,6 +48,7 @@ public:
     void decode_entries();
     void print_info(double runtime, size_t memPeak);
 
+    double noise_prob;
 private:
     Qureg qubits; // Qubits in QuEST
     int n; // # of qubits

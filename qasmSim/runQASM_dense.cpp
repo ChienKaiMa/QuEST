@@ -22,6 +22,17 @@ using namespace std;
 
 #define pi (boost::math::constants::pi<long double>())
 
+enum NOISE_OPTION {
+    NONE,
+    PAULI_ERROR_ACC,
+    AMP_DAMP,
+    PHASE_DAMP,
+    ALL_NOISE,
+    UNKNOWN_NOISE
+    // PAULI_ERROR,
+    // DEPOLARIZE,
+};
+
 int main(int argc, char **argv)
 {
     cxxopts::Options options("Options", "QC simulation options");
@@ -29,7 +40,7 @@ int main(int argc, char **argv)
         ("h, help", "produce help message")
         ("s, sim_qasm", "simulate qasm file string", cxxopts::value<std::string>()->implicit_value(""))
         ("d, seed", "seed for random number generator", cxxopts::value<unsigned int>()->implicit_value("1"))
-        ("p, print_info", "print simulation statistics such as runtime, memory, etc.")
+        ("i, info", "print simulation statistics such as runtime, memory, etc.")
         ("t, type", "the simulation type being executed.\n"
                     "0: weak simulation (default option) where the sampled outcome(s) will be provided after the simulation. "
                     "The number of outcomes being sampled can be set by argument \"shots\" (1 by default).\n"
@@ -38,9 +49,16 @@ int main(int argc, char **argv)
         ("b, shots",   "the number of outcomes being sampled, " 
                     "this argument is only used when the " 
                     "simulation type is set to \"weak\".", cxxopts::value<unsigned int>()->default_value("1"))
+        ("p, prob", "Noise probability.", cxxopts::value<double>())
     ;
 
     auto vm = options.parse(argc, argv);
+    
+    if (argc == 1)
+    {
+        std::cout << options.help() << "\n";
+        exit(0);
+    }
 
     if (vm.count("help"))
     {
@@ -73,6 +91,12 @@ int main(int argc, char **argv)
     assert(shots > 0);
 
     Simulator simulator = Simulator(type, shots, seed);
+    if (vm.count("prob"))
+    {
+        double a =  vm["prob"].as<double>();
+        simulator.noise_prob = pow(2, -1 * a);
+        std::cout << "Noise probability = " << simulator.noise_prob << "\n";
+    }
     if (vm.count("sim_qasm"))
     {
         // read in file into a string
@@ -99,7 +123,7 @@ int main(int argc, char **argv)
 
     double runtime = elapsedTime / 1000;
     size_t memPeak = getPeakRSS();
-    if (vm.count("print_info"))
+    if (vm.count("info"))
         simulator.print_info(runtime, memPeak);
 
     return 0;
@@ -212,7 +236,7 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "x " << inStr << "\n";
                     #endif
                     pauliX(qubits, stoi(inStr));
-                    mixPauli(qubits, stoi(inStr), 0.25, 0.25, 0.25);
+                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
                 }
                 else if (inStr == "y")
                 {
@@ -222,7 +246,7 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "y " << inStr << "\n";
                     #endif
                     pauliY(qubits, stoi(inStr));
-                    mixPauli(qubits, stoi(inStr), 0.25, 0.25, 0.25);
+                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
                 }
                 else if (inStr == "z")
                 {
@@ -235,7 +259,7 @@ void Simulator::sim_qasm_file(std::string qasm)
                     #endif
                     pauliZ(qubits, stoi(inStr));
                     iqubit.clear();
-                    mixPauli(qubits, stoi(inStr), 0.25, 0.25, 0.25);
+                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
                 }
                 else if (inStr == "h")
                 {
@@ -245,7 +269,7 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "h " << inStr << "\n";
                     #endif
                     hadamard(qubits, stoi(inStr));
-                    mixPauli(qubits, stoi(inStr), 0.25, 0.25, 0.25);
+                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
                 }
                 else if (inStr == "s")
                 {
@@ -256,7 +280,7 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "s " << inStr << "\n";
                     #endif
                     sGate(qubits, iqubit);
-                    mixPauli(qubits, stoi(inStr), 0.25, 0.25, 0.25);
+                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
                 }
                 else if (inStr == "sdg")
                 {
@@ -277,7 +301,7 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "t " << inStr << "\n";
                     #endif
                     tGate(qubits, iqubit);
-                    mixPauli(qubits, stoi(inStr), 0.25, 0.25, 0.25);
+                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
                 }
                 else if (inStr == "tdg")
                 {
