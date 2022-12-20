@@ -145,7 +145,7 @@ void Simulator::sim_qasm_file(std::string qasm)
     std::stringstream inFile_ss(qasm);
     QuESTEnv env = createQuESTEnv();
     Qureg qubits;
-    ComplexMatrix4 u = {
+    ComplexMatrix4 swap_op = {
         .real={
             {1, 0, 0, 0},
             {0, 0, 1, 0},
@@ -377,7 +377,7 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "cswap " << swapA << ", " << swapB << ", " << cont[0] << "\n";
                     #endif
                     
-                    controlledTwoQubitUnitary(qubits, cont[0], swapA, swapB, u);
+                    controlledTwoQubitUnitary(qubits, cont[0], swapA, swapB, swap_op);
                     cont.clear();
                 }
                 else if (inStr == "ccx" || inStr == "mcx")
