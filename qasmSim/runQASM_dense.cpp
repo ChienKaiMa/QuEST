@@ -49,6 +49,7 @@ int main(int argc, char **argv)
         ("b, shots",   "the number of outcomes being sampled, " 
                     "this argument is only used when the " 
                     "simulation type is set to \"weak\".", cxxopts::value<unsigned int>()->default_value("1"))
+        ("n, noise", "Noise model (0: None, 1: Depolarize, 2: AmpDamp, 3: PhaseDamp, 4: All)", cxxopts::value<int>())
         ("p, prob", "Noise probability.", cxxopts::value<double>())
     ;
 
@@ -91,10 +92,15 @@ int main(int argc, char **argv)
     assert(shots > 0);
 
     Simulator simulator = Simulator(type, shots, seed);
+    int noise_option{0};
+    if (vm.count("noise")) noise_option = vm["noise"].as<int>();
+    simulator.noise_option = noise_option;
+
     if (vm.count("prob"))
     {
         double a =  vm["prob"].as<double>();
-        simulator.noise_prob = pow(2, -1 * a);
+        if (noise_option == PAULI_ERROR_ACC) simulator.noise_prob = pow(2, -1 * a);
+        else simulator.noise_prob = a;
         std::cout << "Noise probability = " << simulator.noise_prob << "\n";
     }
     if (vm.count("sim_qasm"))
@@ -178,6 +184,24 @@ void Simulator::sim_qasm_file(std::string qasm)
         }
     };
 
+    ComplexMatrix2 kraus_op1 = {
+        .real={
+            {1, 0},
+            {0, sqrt(1 - noise_prob)}
+        }
+    };
+
+    ComplexMatrix2 kraus_op2 = {
+        .real={
+            {0, 0},
+            {0, sqrt(noise_prob)}
+        }
+    };
+
+    ComplexMatrix2 *ops = new ComplexMatrix2[2];
+    ops[0] = kraus_op1;
+    ops[1] = kraus_op2;
+
     while (getline(inFile_ss, inStr))
     {
         inStr = inStr.substr(0, inStr.find("//"));
@@ -194,6 +218,7 @@ void Simulator::sim_qasm_file(std::string qasm)
                 std::cerr << "numQubits = " << numQubits << "\n";
                 qubits = createDensityQureg(stoi(inStr), env);
                 initZeroState(qubits);
+                this->n = numQubits;
 
                 /*
                  * REPORT SYSTEM AND ENVIRONMENT
@@ -236,7 +261,61 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "x " << inStr << "\n";
                     #endif
                     pauliX(qubits, stoi(inStr));
-                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                    /*
+                    for (auto i = 0; i < n; ++i)
+                    {
+                        switch (noise_option)
+                        {
+                        case NONE:
+                            break;
+                        case PAULI_ERROR_ACC:
+                            mixPauli(qubits, i, noise_prob, noise_prob, noise_prob);
+                            break;
+                        case AMP_DAMP:
+                            mixDamping(qubits, i, noise_prob);
+                            break;
+                        case PHASE_DAMP:
+                            mixDephasing(qubits, i, noise_prob);
+                            break;
+                        case ALL_NOISE:
+                            // std::cerr << "WARNING: A configuration file is needed.\n";
+                            mixPauli(qubits, i, 0.0625, 0.0625, 0.0625);
+                            mixDamping(qubits, i, 0.3);
+                            mixDephasing(qubits, i, 0.3);
+                            break;
+                        default:
+                            std::cerr << "WARNING: Unknown error model! Default to none\n";
+                            break;
+                        }
+                    }
+                    */
+                    ///*
+                    switch (noise_option)
+                    {
+                    case NONE:
+                        break;
+                    case PAULI_ERROR_ACC:
+                        mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                        break;
+                    case AMP_DAMP:
+                        mixDamping(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case PHASE_DAMP:
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case ALL_NOISE:
+                        // std::cerr << "WARNING: A configuration file is needed.\n";
+                        mixPauli(qubits, stoi(inStr), 0.0625, 0.0625, 0.0625);
+                        mixDamping(qubits, stoi(inStr), 0.3);
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), 0.3);
+                        break;
+                    default:
+                        std::cerr << "WARNING: Unknown error model! Default to none\n";
+                        break;
+                    }
+                    //*/
                 }
                 else if (inStr == "y")
                 {
@@ -246,7 +325,61 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "y " << inStr << "\n";
                     #endif
                     pauliY(qubits, stoi(inStr));
-                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                    /*
+                    for (auto i = 0; i < n; ++i)
+                    {
+                        switch (noise_option)
+                        {
+                        case NONE:
+                            break;
+                        case PAULI_ERROR_ACC:
+                            mixPauli(qubits, i, noise_prob, noise_prob, noise_prob);
+                            break;
+                        case AMP_DAMP:
+                            mixDamping(qubits, i, noise_prob);
+                            break;
+                        case PHASE_DAMP:
+                            mixDephasing(qubits, i, noise_prob);
+                            break;
+                        case ALL_NOISE:
+                            // std::cerr << "WARNING: A configuration file is needed.\n";
+                            mixPauli(qubits, i, 0.0625, 0.0625, 0.0625);
+                            mixDamping(qubits, i, 0.3);
+                            mixDephasing(qubits, i, 0.3);
+                            break;
+                        default:
+                            std::cerr << "WARNING: Unknown error model! Default to none\n";
+                            break;
+                        }
+                    }
+                    */
+                    ///*
+                    switch (noise_option)
+                    {
+                    case NONE:
+                        break;
+                    case PAULI_ERROR_ACC:
+                        mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                        break;
+                    case AMP_DAMP:
+                        mixDamping(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case PHASE_DAMP:
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case ALL_NOISE:
+                        // std::cerr << "WARNING: A configuration file is needed.\n";
+                        mixPauli(qubits, stoi(inStr), 0.0625, 0.0625, 0.0625);
+                        mixDamping(qubits, stoi(inStr), 0.3);
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), 0.3);
+                        break;
+                    default:
+                        std::cerr << "WARNING: Unknown error model! Default to none\n";
+                        break;
+                    }
+                    //*/
                 }
                 else if (inStr == "z")
                 {
@@ -259,7 +392,61 @@ void Simulator::sim_qasm_file(std::string qasm)
                     #endif
                     pauliZ(qubits, stoi(inStr));
                     iqubit.clear();
-                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                    /*
+                    for (auto i = 0; i < n; ++i)
+                    {
+                        switch (noise_option)
+                        {
+                        case NONE:
+                            break;
+                        case PAULI_ERROR_ACC:
+                            mixPauli(qubits, i, noise_prob, noise_prob, noise_prob);
+                            break;
+                        case AMP_DAMP:
+                            mixDamping(qubits, i, noise_prob);
+                            break;
+                        case PHASE_DAMP:
+                            mixDephasing(qubits, i, noise_prob);
+                            break;
+                        case ALL_NOISE:
+                            // std::cerr << "WARNING: A configuration file is needed.\n";
+                            mixPauli(qubits, i, 0.0625, 0.0625, 0.0625);
+                            mixDamping(qubits, i, 0.3);
+                            mixDephasing(qubits, i, 0.3);
+                            break;
+                        default:
+                            std::cerr << "WARNING: Unknown error model! Default to none\n";
+                            break;
+                        }
+                    }
+                    */
+                    ///*
+                    switch (noise_option)
+                    {
+                    case NONE:
+                        break;
+                    case PAULI_ERROR_ACC:
+                        mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                        break;
+                    case AMP_DAMP:
+                        mixDamping(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case PHASE_DAMP:
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case ALL_NOISE:
+                        // std::cerr << "WARNING: A configuration file is needed.\n";
+                        mixPauli(qubits, stoi(inStr), 0.0625, 0.0625, 0.0625);
+                        mixDamping(qubits, stoi(inStr), 0.3);
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), 0.3);
+                        break;
+                    default:
+                        std::cerr << "WARNING: Unknown error model! Default to none\n";
+                        break;
+                    }
+                    //*/
                 }
                 else if (inStr == "h")
                 {
@@ -269,7 +456,61 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "h " << inStr << "\n";
                     #endif
                     hadamard(qubits, stoi(inStr));
-                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                    /*
+                    for (auto i = 0; i < n; ++i)
+                    {
+                        switch (noise_option)
+                        {
+                        case NONE:
+                            break;
+                        case PAULI_ERROR_ACC:
+                            mixPauli(qubits, i, noise_prob, noise_prob, noise_prob);
+                            break;
+                        case AMP_DAMP:
+                            mixDamping(qubits, i, noise_prob);
+                            break;
+                        case PHASE_DAMP:
+                            mixDephasing(qubits, i, noise_prob);
+                            break;
+                        case ALL_NOISE:
+                            // std::cerr << "WARNING: A configuration file is needed.\n";
+                            mixPauli(qubits, i, 0.0625, 0.0625, 0.0625);
+                            mixDamping(qubits, i, 0.3);
+                            mixDephasing(qubits, i, 0.3);
+                            break;
+                        default:
+                            std::cerr << "WARNING: Unknown error model! Default to none\n";
+                            break;
+                        }
+                    }
+                    */
+                    ///*
+                    switch (noise_option)
+                    {
+                    case NONE:
+                        break;
+                    case PAULI_ERROR_ACC:
+                        mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                        break;
+                    case AMP_DAMP:
+                        mixDamping(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case PHASE_DAMP:
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case ALL_NOISE:
+                        // std::cerr << "WARNING: A configuration file is needed.\n";
+                        mixPauli(qubits, stoi(inStr), 0.0625, 0.0625, 0.0625);
+                        mixDamping(qubits, stoi(inStr), 0.3);
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), 0.3);
+                        break;
+                    default:
+                        std::cerr << "WARNING: Unknown error model! Default to none\n";
+                        break;
+                    }
+                    //*/
                 }
                 else if (inStr == "s")
                 {
@@ -280,7 +521,61 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "s " << inStr << "\n";
                     #endif
                     sGate(qubits, iqubit);
-                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                    /*
+                    for (auto i = 0; i < n; ++i)
+                    {
+                        switch (noise_option)
+                        {
+                        case NONE:
+                            break;
+                        case PAULI_ERROR_ACC:
+                            mixPauli(qubits, i, noise_prob, noise_prob, noise_prob);
+                            break;
+                        case AMP_DAMP:
+                            mixDamping(qubits, i, noise_prob);
+                            break;
+                        case PHASE_DAMP:
+                            mixDephasing(qubits, i, noise_prob);
+                            break;
+                        case ALL_NOISE:
+                            // std::cerr << "WARNING: A configuration file is needed.\n";
+                            mixPauli(qubits, i, 0.0625, 0.0625, 0.0625);
+                            mixDamping(qubits, i, 0.3);
+                            mixDephasing(qubits, i, 0.3);
+                            break;
+                        default:
+                            std::cerr << "WARNING: Unknown error model! Default to none\n";
+                            break;
+                        }
+                    }
+                    */
+                    ///*
+                    switch (noise_option)
+                    {
+                    case NONE:
+                        break;
+                    case PAULI_ERROR_ACC:
+                        mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                        break;
+                    case AMP_DAMP:
+                        mixDamping(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case PHASE_DAMP:
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case ALL_NOISE:
+                        // std::cerr << "WARNING: A configuration file is needed.\n";
+                        mixPauli(qubits, stoi(inStr), 0.0625, 0.0625, 0.0625);
+                        mixDamping(qubits, stoi(inStr), 0.3);
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), 0.3);
+                        break;
+                    default:
+                        std::cerr << "WARNING: Unknown error model! Default to none\n";
+                        break;
+                    }
+                    //*/
                 }
                 else if (inStr == "sdg")
                 {
@@ -301,7 +596,60 @@ void Simulator::sim_qasm_file(std::string qasm)
                     std::cout << "t " << inStr << "\n";
                     #endif
                     tGate(qubits, iqubit);
-                    mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                    /*
+                    for (auto i = 0; i < n; ++i)
+                    {
+                        switch (noise_option)
+                        {
+                        case NONE:
+                            break;
+                        case PAULI_ERROR_ACC:
+                            mixPauli(qubits, i, noise_prob, noise_prob, noise_prob);
+                            break;
+                        case AMP_DAMP:
+                            mixDamping(qubits, i, noise_prob);
+                            break;
+                        case PHASE_DAMP:
+                            mixDephasing(qubits, i, noise_prob);
+                            break;
+                        case ALL_NOISE:
+                            // std::cerr << "WARNING: A configuration file is needed.\n";
+                            mixPauli(qubits, i, 0.0625, 0.0625, 0.0625);
+                            mixDamping(qubits, i, 0.3);
+                            mixDephasing(qubits, i, 0.3);
+                            break;
+                        default:
+                            std::cerr << "WARNING: Unknown error model! Default to none\n";
+                            break;
+                        }
+                    }
+                    */
+                    switch (noise_option)
+                    {
+                    case NONE:
+                        break;
+                    case PAULI_ERROR_ACC:
+                        mixPauli(qubits, stoi(inStr), noise_prob, noise_prob, noise_prob);
+                        break;
+                    case AMP_DAMP:
+                        mixDamping(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case PHASE_DAMP:
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), noise_prob);
+                        break;
+                    case ALL_NOISE:
+                        // std::cerr << "WARNING: A configuration file is needed.\n";
+                        mixPauli(qubits, stoi(inStr), 0.0625, 0.0625, 0.0625);
+                        mixDamping(qubits, stoi(inStr), 0.3);
+                        mixKrausMap(qubits, stoi(inStr), ops, 2);
+                        // mixDephasing(qubits, stoi(inStr), 0.3);
+                        break;
+                    default:
+                        std::cerr << "WARNING: Unknown error model! Default to none\n";
+                        break;
+                    }
+                    
                 }
                 else if (inStr == "tdg")
                 {

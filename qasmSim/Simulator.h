@@ -47,7 +47,7 @@ public:
     void reorder();
     void decode_entries();
     void print_info(double runtime, size_t memPeak);
-
+    int noise_option;
     double noise_prob;
 private:
     Qureg qubits; // Qubits in QuEST
